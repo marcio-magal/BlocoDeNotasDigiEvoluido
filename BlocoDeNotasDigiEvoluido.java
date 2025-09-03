@@ -8,9 +8,11 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
     private JFileChooser seletorDeArquivo;
     private File arquivoAtual;
     private JLabel barraDeStatus;
-
-    // Controle de alterações
     private boolean alterado = false;
+
+    // Controle de busca
+    private int ultimaPosicaoEncontrada = -1;
+    private String ultimaBusca = "";
 
     public BlocoDeNotasDigiEvoluido() {
         super("Bloco de Notas Simples");
@@ -53,7 +55,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         painelStatus.add(barraDeStatus);
         add(painelStatus, BorderLayout.SOUTH);
 
-        // Listener para atualizações
+        // Listener de alterações
         areaDeTexto.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
@@ -62,28 +64,22 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
             }
         });
 
-        // Ações do menu Arquivo
-        itemAbrir.addActionListener(e -> {
-            if (verificarAlteracoesNaoSalvas()) abrirArquivo();
-        });
+        // Ações Arquivo
+        itemAbrir.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) abrirArquivo(); });
         itemSalvar.addActionListener(e -> salvarArquivo());
         itemSalvarComo.addActionListener(e -> salvarArquivoComo());
-        itemSair.addActionListener(e -> {
-            if (verificarAlteracoesNaoSalvas()) System.exit(0);
-        });
+        itemSair.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) System.exit(0); });
 
-        // Ações do menu Editar
+        // Ações Editar
         itemLimpar.addActionListener(e -> confirmarLimpar());
-        itemLocalizar.addActionListener(e -> JOptionPane.showMessageDialog(this, "Função Localizar ainda não implementada."));
-        itemLocalizarSubstituir.addActionListener(e -> JOptionPane.showMessageDialog(this, "Função Localizar e Substituir ainda não implementada."));
+        itemLocalizar.addActionListener(e -> localizarTexto());
+        itemLocalizarSubstituir.addActionListener(e -> abrirJanelaLocalizarSubstituir());
 
-        // Ao fechar a janela -> verificar alterações
+        // Verificação ao fechar
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                if (verificarAlteracoesNaoSalvas()) {
-                    dispose();
-                }
+                if (verificarAlteracoesNaoSalvas()) dispose();
             }
         });
 
@@ -93,6 +89,89 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         setVisible(true);
     }
 
+    // --- Localizar ---
+    private void localizarTexto() {
+        String termo = JOptionPane.showInputDialog(this, "Digite o termo a localizar:");
+        if (termo != null && !termo.isEmpty()) {
+            ultimaBusca = termo;
+            ultimaPosicaoEncontrada = areaDeTexto.getText().indexOf(termo);
+
+            if (ultimaPosicaoEncontrada >= 0) {
+                areaDeTexto.requestFocus();
+                areaDeTexto.select(ultimaPosicaoEncontrada, ultimaPosicaoEncontrada + termo.length());
+            } else {
+                JOptionPane.showMessageDialog(this, "Termo não encontrado.");
+            }
+        }
+    }
+
+    // --- Localizar e Substituir ---
+    private void abrirJanelaLocalizarSubstituir() {
+        JDialog dialogo = new JDialog(this, "Localizar e Substituir", true);
+        dialogo.setLayout(new GridLayout(3, 2, 5, 5));
+
+        JTextField campoLocalizar = new JTextField();
+        JTextField campoSubstituir = new JTextField();
+
+        JButton btnLocalizar = new JButton("Localizar Próximo");
+        JButton btnSubstituir = new JButton("Substituir");
+        JButton btnSubstituirTodos = new JButton("Substituir Todos");
+
+        dialogo.add(new JLabel("Localizar:"));
+        dialogo.add(campoLocalizar);
+        dialogo.add(new JLabel("Substituir por:"));
+        dialogo.add(campoSubstituir);
+        dialogo.add(btnLocalizar);
+        dialogo.add(btnSubstituir);
+        dialogo.add(btnSubstituirTodos);
+
+        // Ação Localizar Próximo
+        btnLocalizar.addActionListener(e -> {
+            String termo = campoLocalizar.getText();
+            if (!termo.isEmpty()) {
+                String texto = areaDeTexto.getText();
+                ultimaPosicaoEncontrada = texto.indexOf(termo, areaDeTexto.getCaretPosition());
+
+                if (ultimaPosicaoEncontrada >= 0) {
+                    areaDeTexto.requestFocus();
+                    areaDeTexto.select(ultimaPosicaoEncontrada, ultimaPosicaoEncontrada + termo.length());
+                } else {
+                    JOptionPane.showMessageDialog(dialogo, "Nenhuma ocorrência encontrada.");
+                }
+            }
+        });
+
+        // Ação Substituir
+        btnSubstituir.addActionListener(e -> {
+            String termo = campoLocalizar.getText();
+            String substituto = campoSubstituir.getText();
+            if (!termo.isEmpty() && areaDeTexto.getSelectedText() != null &&
+                areaDeTexto.getSelectedText().equals(termo)) {
+
+                areaDeTexto.replaceSelection(substituto);
+                setAlterado(true);
+            }
+        });
+
+        // Ação Substituir Todos
+        btnSubstituirTodos.addActionListener(e -> {
+            String termo = campoLocalizar.getText();
+            String substituto = campoSubstituir.getText();
+            if (!termo.isEmpty()) {
+                String texto = areaDeTexto.getText();
+                texto = texto.replaceAll(termo, substituto);
+                areaDeTexto.setText(texto);
+                setAlterado(true);
+                atualizarBarraDeStatus();
+            }
+        });
+
+        dialogo.setSize(400, 150);
+        dialogo.setLocationRelativeTo(this);
+        dialogo.setVisible(true);
+    }
+
+    // --- Confirmar limpar ---
     private void confirmarLimpar() {
         int resposta = JOptionPane.showConfirmDialog(this, "Deseja realmente limpar o texto?", "Confirmação", JOptionPane.YES_NO_OPTION);
         if (resposta == JOptionPane.YES_OPTION) {
@@ -102,14 +181,15 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         }
     }
 
+    // --- Atualizar status ---
     private void atualizarBarraDeStatus() {
         String texto = areaDeTexto.getText();
         int caracteres = texto.length();
         String[] palavras = texto.trim().isEmpty() ? new String[0] : texto.trim().split("\\s+");
-        int qtdPalavras = palavras.length;
-        barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + qtdPalavras);
+        barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + palavras.length);
     }
 
+    // --- Arquivo ---
     private void abrirArquivo() {
         if (seletorDeArquivo.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             arquivoAtual = seletorDeArquivo.getSelectedFile();
@@ -151,30 +231,22 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
 
     private void atualizarTitulo() {
         String nomeArquivo = (arquivoAtual != null) ? arquivoAtual.getName() : "Sem título";
-        if (alterado) {
-            setTitle(nomeArquivo + "* - Bloco de Notas");
-        } else {
-            setTitle(nomeArquivo + " - Bloco de Notas");
-        }
+        setTitle(nomeArquivo + (alterado ? "*" : "") + " - Bloco de Notas");
     }
 
     private boolean verificarAlteracoesNaoSalvas() {
         if (!alterado) return true;
-
-        int resposta = JOptionPane.showConfirmDialog(
-                this,
+        int resposta = JOptionPane.showConfirmDialog(this,
                 "O arquivo foi modificado. Deseja salvar as alterações?",
                 "Alterações não salvas",
-                JOptionPane.YES_NO_CANCEL_OPTION
-        );
-
+                JOptionPane.YES_NO_CANCEL_OPTION);
         if (resposta == JOptionPane.YES_OPTION) {
             salvarArquivo();
             return true;
         } else if (resposta == JOptionPane.NO_OPTION) {
             return true;
         } else {
-            return false; // Cancelar
+            return false;
         }
     }
 
