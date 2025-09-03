@@ -7,6 +7,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
     private JTextArea areaDeTexto;
     private JFileChooser seletorDeArquivo;
     private File arquivoAtual;
+    private JLabel barraDeStatus; // Barra de informações
 
     public BlocoDeNotasDigiEvoluido() {
         super("Bloco de Notas Simples");
@@ -50,6 +51,20 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         // Coloca barra de menus na janela
         setJMenuBar(menuBar);
 
+        // ---- Barra de Status ----
+        barraDeStatus = new JLabel("Caracteres: 0 | Palavras: 0");
+        JPanel painelStatus = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        painelStatus.add(barraDeStatus);
+        add(painelStatus, BorderLayout.SOUTH);
+
+        // Listener para atualizar barra de status sempre que o texto mudar
+        areaDeTexto.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                atualizarBarraDeStatus();
+            }
+        });
+
         // Ações do menu Arquivo
         itemAbrir.addActionListener(e -> abrirArquivo());
         itemSalvar.addActionListener(e -> salvarArquivo());
@@ -57,7 +72,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         itemSair.addActionListener(e -> System.exit(0));
 
         // Ações do menu Editar
-        itemLimpar.addActionListener(e -> areaDeTexto.setText(""));
+        itemLimpar.addActionListener(e -> confirmarLimpar());
         itemLocalizar.addActionListener(e -> JOptionPane.showMessageDialog(this, "Função Localizar ainda não implementada."));
         itemLocalizarSubstituir.addActionListener(e -> JOptionPane.showMessageDialog(this, "Função Localizar e Substituir ainda não implementada."));
 
@@ -67,11 +82,31 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         setVisible(true);
     }
 
+    private void confirmarLimpar() {
+        int resposta = JOptionPane.showConfirmDialog(this, "Deseja realmente limpar o texto?", "Confirmação", JOptionPane.YES_NO_OPTION);
+        if (resposta == JOptionPane.YES_OPTION) {
+            areaDeTexto.setText("");
+            atualizarBarraDeStatus();
+        }
+    }
+
+    private void atualizarBarraDeStatus() {
+        String texto = areaDeTexto.getText();
+        int caracteres = texto.length();
+
+        // Contar palavras (separadas por espaço, ignorando múltiplos espaços)
+        String[] palavras = texto.trim().isEmpty() ? new String[0] : texto.trim().split("\\s+");
+        int qtdPalavras = palavras.length;
+
+        barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + qtdPalavras);
+    }
+
     private void abrirArquivo() {
         if (seletorDeArquivo.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             arquivoAtual = seletorDeArquivo.getSelectedFile();
             try (BufferedReader reader = new BufferedReader(new FileReader(arquivoAtual))) {
                 areaDeTexto.read(reader, null);
+                atualizarBarraDeStatus();
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Erro ao abrir o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
             }
