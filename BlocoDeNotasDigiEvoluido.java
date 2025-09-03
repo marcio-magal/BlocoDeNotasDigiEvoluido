@@ -5,13 +5,13 @@ import java.io.*;
 import java.util.HashMap;
 
 public class BlocoDeNotasDigiEvoluido extends JFrame {
-    private JTabbedPane abas;
-    private JFileChooser seletorDeArquivo;
-    private JLabel barraDeStatus;
+    private JTabbedPane abas;               // Componente que gerencia múltiplas abas
+    private JFileChooser seletorDeArquivo;  // Caixa de diálogo para abrir/salvar arquivos
+    private JLabel barraDeStatus;           // Exibe número de caracteres e palavras
 
-    // Estruturas para controlar arquivos e estados por aba
-    private HashMap<Component, File> arquivos = new HashMap<>();
-    private HashMap<Component, Boolean> alterados = new HashMap<>();
+    // Estruturas de controle de estado de cada aba
+    private HashMap<Component, File> arquivos = new HashMap<>();    // Arquivo associado a cada aba
+    private HashMap<Component, Boolean> alterados = new HashMap<>(); // Indica se há alterações não salvas
 
     public BlocoDeNotasDigiEvoluido() {
         super("Bloco de Notas com Abas");
@@ -21,9 +21,10 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
 
         seletorDeArquivo = new JFileChooser();
 
-        // ---- Barra de Menus ----
+        // ---------------- MENU ----------------
         JMenuBar menuBar = new JMenuBar();
 
+        // Menu Arquivo
         JMenu menuArquivo = new JMenu("Arquivo");
         JMenuItem itemNovo = new JMenuItem("Novo");
         JMenuItem itemAbrir = new JMenuItem("Abrir");
@@ -37,6 +38,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         menuArquivo.addSeparator();
         menuArquivo.add(itemSair);
 
+        // Menu Editar
         JMenu menuEditar = new JMenu("Editar");
         JMenuItem itemLimpar = new JMenuItem("Limpar");
         JMenuItem itemLocalizar = new JMenuItem("Localizar...");
@@ -49,25 +51,24 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         menuBar.add(menuEditar);
         setJMenuBar(menuBar);
 
-        // ---- Barra de Status ----
+        // ---------------- BARRA DE STATUS ----------------
         barraDeStatus = new JLabel("Caracteres: 0 | Palavras: 0");
         JPanel painelStatus = new JPanel(new FlowLayout(FlowLayout.LEFT));
         painelStatus.add(barraDeStatus);
         add(painelStatus, BorderLayout.SOUTH);
 
-        // Ações Arquivo
+        // ---------------- AÇÕES DOS MENUS ----------------
         itemNovo.addActionListener(e -> novaAba(null));
         itemAbrir.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) abrirArquivo(); });
         itemSalvar.addActionListener(e -> salvarArquivo());
         itemSalvarComo.addActionListener(e -> salvarArquivoComo());
         itemSair.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) System.exit(0); });
 
-        // Ações Editar
         itemLimpar.addActionListener(e -> confirmarLimpar());
         itemLocalizar.addActionListener(e -> localizarTexto());
         itemLocalizarSubstituir.addActionListener(e -> abrirJanelaLocalizarSubstituir());
 
-        // Verificação ao fechar a janela
+        // Ao fechar a janela principal, verificar alterações
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -84,7 +85,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         setVisible(true);
     }
 
-    // Criar nova aba
+    // ---------------- CRIAR NOVA ABA ----------------
     private void novaAba(File arquivo) {
         JTextArea areaDeTexto = new JTextArea();
         JScrollPane scrollPane = new JScrollPane(areaDeTexto);
@@ -93,9 +94,10 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         arquivos.put(scrollPane, arquivo);
         alterados.put(scrollPane, false);
 
-        // Personaliza aba com botão de fechar
+        // Personaliza título da aba com botão de fechar
         setTituloAba(scrollPane, (arquivo != null) ? arquivo.getName() : "Sem título", false);
 
+        // Listener para detectar alterações
         areaDeTexto.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
@@ -106,6 +108,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
 
         abas.setSelectedComponent(scrollPane);
 
+        // Se abrir arquivo existente, carregar conteúdo
         if (arquivo != null) {
             try (BufferedReader reader = new BufferedReader(new FileReader(arquivo))) {
                 areaDeTexto.read(reader, null);
@@ -127,7 +130,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         return (JScrollPane) abas.getSelectedComponent();
     }
 
-    // Atualiza barra de status
+    // ---------------- ATUALIZA STATUS ----------------
     private void atualizarBarraDeStatus(JTextArea area) {
         String texto = area.getText();
         int caracteres = texto.length();
@@ -135,7 +138,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + palavras.length);
     }
 
-    // Arquivo
+    // ---------------- GERENCIAMENTO DE ARQUIVOS ----------------
     private void abrirArquivo() {
         if (seletorDeArquivo.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File arquivo = seletorDeArquivo.getSelectedFile();
@@ -162,7 +165,6 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
 
     private void salvarArquivoComo() {
         JScrollPane scroll = getScrollAtual();
-        JTextArea area = getAreaAtual();
 
         if (seletorDeArquivo.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File arquivo = seletorDeArquivo.getSelectedFile();
@@ -171,7 +173,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         }
     }
 
-    // Fechar aba (com verificação)
+    // ---------------- FECHAR ABA ----------------
     private void fecharAba(JScrollPane scroll) {
         if (scroll != null) {
             if (verificarAlteracoesNaoSalvas(scroll)) {
@@ -179,6 +181,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
                 arquivos.remove(scroll);
                 alterados.remove(scroll);
 
+                // Se todas as abas forem fechadas, cria uma em branco
                 if (abas.getTabCount() == 0) {
                     novaAba(null);
                 }
@@ -186,7 +189,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         }
     }
 
-    // Controle de alterações
+    // ---------------- ALTERAÇÕES ----------------
     private void setAlterado(JScrollPane scroll, boolean alterado) {
         alterados.put(scroll, alterado);
         File arquivo = arquivos.get(scroll);
@@ -194,24 +197,31 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         setTituloAba(scroll, titulo, alterado);
     }
 
+    // Personaliza título da aba com botão de fechar (fundo vermelho)
     private void setTituloAba(JScrollPane scroll, String titulo, boolean alterado) {
         int index = abas.indexOfComponent(scroll);
-        JPanel painelTitulo = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+
+        JPanel painelTitulo = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0)); // Espaço entre título e botão
         painelTitulo.setOpaque(false);
 
         JLabel lblTitulo = new JLabel(titulo + (alterado ? "*" : ""));
-        JButton btnFechar = new JButton("x");
-        btnFechar.setMargin(new Insets(0, 2, 0, 2));
-        btnFechar.setBorder(null);
+
+        JButton btnFechar = new JButton("X");
+        btnFechar.setForeground(Color.WHITE); // Texto branco
+        btnFechar.setBackground(Color.RED);   // Fundo vermelho
+        btnFechar.setFocusPainted(false);
+        btnFechar.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
 
         btnFechar.addActionListener(e -> fecharAba(scroll));
 
         painelTitulo.add(lblTitulo);
+        painelTitulo.add(Box.createHorizontalStrut(5)); // Espaço entre título e botão
         painelTitulo.add(btnFechar);
 
         abas.setTabComponentAt(index, painelTitulo);
     }
 
+    // ---------------- VERIFICA ALTERAÇÕES NÃO SALVAS ----------------
     private boolean verificarAlteracoesNaoSalvas() {
         return verificarAlteracoesNaoSalvas(getScrollAtual());
     }
@@ -237,7 +247,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         }
     }
 
-    // Funções Editar
+    // ---------------- FUNÇÕES EDITAR ----------------
     private void confirmarLimpar() {
         JTextArea area = getAreaAtual();
         int resposta = JOptionPane.showConfirmDialog(this, "Deseja realmente limpar o texto?", "Confirmação", JOptionPane.YES_NO_OPTION);
@@ -321,6 +331,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         dialogo.setVisible(true);
     }
 
+    // ---------------- MAIN ----------------
     public static void main(String[] args) {
         SwingUtilities.invokeLater(BlocoDeNotasDigiEvoluido::new);
     }
