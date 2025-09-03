@@ -7,7 +7,10 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
     private JTextArea areaDeTexto;
     private JFileChooser seletorDeArquivo;
     private File arquivoAtual;
-    private JLabel barraDeStatus; // Barra de informações
+    private JLabel barraDeStatus;
+
+    // Controle de alterações
+    private boolean alterado = false;
 
     public BlocoDeNotasDigiEvoluido() {
         super("Bloco de Notas Simples");
@@ -18,37 +21,30 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
 
         seletorDeArquivo = new JFileChooser();
 
-        // Criar barra de menus
+        // ---- Barra de Menus ----
         JMenuBar menuBar = new JMenuBar();
 
-        // Menu Arquivo
         JMenu menuArquivo = new JMenu("Arquivo");
         JMenuItem itemAbrir = new JMenuItem("Abrir");
         JMenuItem itemSalvar = new JMenuItem("Salvar");
         JMenuItem itemSalvarComo = new JMenuItem("Salvar Como...");
         JMenuItem itemSair = new JMenuItem("Sair");
-
         menuArquivo.add(itemAbrir);
         menuArquivo.add(itemSalvar);
         menuArquivo.add(itemSalvarComo);
         menuArquivo.addSeparator();
         menuArquivo.add(itemSair);
 
-        // Menu Editar
         JMenu menuEditar = new JMenu("Editar");
         JMenuItem itemLimpar = new JMenuItem("Limpar");
         JMenuItem itemLocalizar = new JMenuItem("Localizar...");
         JMenuItem itemLocalizarSubstituir = new JMenuItem("Localizar e Substituir...");
-
         menuEditar.add(itemLimpar);
         menuEditar.add(itemLocalizar);
         menuEditar.add(itemLocalizarSubstituir);
 
-        // Adiciona menus na barra
         menuBar.add(menuArquivo);
         menuBar.add(menuEditar);
-
-        // Coloca barra de menus na janela
         setJMenuBar(menuBar);
 
         // ---- Barra de Status ----
@@ -57,27 +53,42 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         painelStatus.add(barraDeStatus);
         add(painelStatus, BorderLayout.SOUTH);
 
-        // Listener para atualizar barra de status sempre que o texto mudar
+        // Listener para atualizações
         areaDeTexto.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
                 atualizarBarraDeStatus();
+                setAlterado(true);
             }
         });
 
         // Ações do menu Arquivo
-        itemAbrir.addActionListener(e -> abrirArquivo());
+        itemAbrir.addActionListener(e -> {
+            if (verificarAlteracoesNaoSalvas()) abrirArquivo();
+        });
         itemSalvar.addActionListener(e -> salvarArquivo());
         itemSalvarComo.addActionListener(e -> salvarArquivoComo());
-        itemSair.addActionListener(e -> System.exit(0));
+        itemSair.addActionListener(e -> {
+            if (verificarAlteracoesNaoSalvas()) System.exit(0);
+        });
 
         // Ações do menu Editar
         itemLimpar.addActionListener(e -> confirmarLimpar());
         itemLocalizar.addActionListener(e -> JOptionPane.showMessageDialog(this, "Função Localizar ainda não implementada."));
         itemLocalizarSubstituir.addActionListener(e -> JOptionPane.showMessageDialog(this, "Função Localizar e Substituir ainda não implementada."));
 
+        // Ao fechar a janela -> verificar alterações
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                if (verificarAlteracoesNaoSalvas()) {
+                    dispose();
+                }
+            }
+        });
+
         setSize(600, 400);
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
         setVisible(true);
     }
@@ -87,17 +98,15 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         if (resposta == JOptionPane.YES_OPTION) {
             areaDeTexto.setText("");
             atualizarBarraDeStatus();
+            setAlterado(true);
         }
     }
 
     private void atualizarBarraDeStatus() {
         String texto = areaDeTexto.getText();
         int caracteres = texto.length();
-
-        // Contar palavras (separadas por espaço, ignorando múltiplos espaços)
         String[] palavras = texto.trim().isEmpty() ? new String[0] : texto.trim().split("\\s+");
         int qtdPalavras = palavras.length;
-
         barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + qtdPalavras);
     }
 
@@ -107,6 +116,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
             try (BufferedReader reader = new BufferedReader(new FileReader(arquivoAtual))) {
                 areaDeTexto.read(reader, null);
                 atualizarBarraDeStatus();
+                setAlterado(false);
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Erro ao abrir o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
             }
@@ -117,6 +127,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         if (arquivoAtual != null) {
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoAtual))) {
                 areaDeTexto.write(writer);
+                setAlterado(false);
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Erro ao salvar o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
             }
@@ -129,6 +140,41 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         if (seletorDeArquivo.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             arquivoAtual = seletorDeArquivo.getSelectedFile();
             salvarArquivo();
+        }
+    }
+
+    // --- Controle de alterações ---
+    private void setAlterado(boolean alterado) {
+        this.alterado = alterado;
+        atualizarTitulo();
+    }
+
+    private void atualizarTitulo() {
+        String nomeArquivo = (arquivoAtual != null) ? arquivoAtual.getName() : "Sem título";
+        if (alterado) {
+            setTitle(nomeArquivo + "* - Bloco de Notas");
+        } else {
+            setTitle(nomeArquivo + " - Bloco de Notas");
+        }
+    }
+
+    private boolean verificarAlteracoesNaoSalvas() {
+        if (!alterado) return true;
+
+        int resposta = JOptionPane.showConfirmDialog(
+                this,
+                "O arquivo foi modificado. Deseja salvar as alterações?",
+                "Alterações não salvas",
+                JOptionPane.YES_NO_CANCEL_OPTION
+        );
+
+        if (resposta == JOptionPane.YES_OPTION) {
+            salvarArquivo();
+            return true;
+        } else if (resposta == JOptionPane.NO_OPTION) {
+            return true;
+        } else {
+            return false; // Cancelar
         }
     }
 
