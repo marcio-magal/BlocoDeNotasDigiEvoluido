@@ -29,13 +29,11 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         JMenuItem itemAbrir = new JMenuItem("Abrir");
         JMenuItem itemSalvar = new JMenuItem("Salvar");
         JMenuItem itemSalvarComo = new JMenuItem("Salvar Como...");
-        JMenuItem itemFecharAba = new JMenuItem("Fechar Aba");
         JMenuItem itemSair = new JMenuItem("Sair");
         menuArquivo.add(itemNovo);
         menuArquivo.add(itemAbrir);
         menuArquivo.add(itemSalvar);
         menuArquivo.add(itemSalvarComo);
-        menuArquivo.add(itemFecharAba);
         menuArquivo.addSeparator();
         menuArquivo.add(itemSair);
 
@@ -62,7 +60,6 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         itemAbrir.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) abrirArquivo(); });
         itemSalvar.addActionListener(e -> salvarArquivo());
         itemSalvarComo.addActionListener(e -> salvarArquivoComo());
-        itemFecharAba.addActionListener(e -> fecharAbaAtual());
         itemSair.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) System.exit(0); });
 
         // Ações Editar
@@ -70,7 +67,7 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         itemLocalizar.addActionListener(e -> localizarTexto());
         itemLocalizarSubstituir.addActionListener(e -> abrirJanelaLocalizarSubstituir());
 
-        // Verificação ao fechar
+        // Verificação ao fechar a janela
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -92,11 +89,12 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         JTextArea areaDeTexto = new JTextArea();
         JScrollPane scrollPane = new JScrollPane(areaDeTexto);
 
-        String titulo = (arquivo != null) ? arquivo.getName() : "Sem título";
-        abas.addTab(titulo, scrollPane);
-
+        abas.addTab("", scrollPane);
         arquivos.put(scrollPane, arquivo);
         alterados.put(scrollPane, false);
+
+        // Personaliza aba com botão de fechar
+        setTituloAba(scrollPane, (arquivo != null) ? arquivo.getName() : "Sem título", false);
 
         areaDeTexto.addKeyListener(new KeyAdapter() {
             @Override
@@ -173,11 +171,10 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         }
     }
 
-    // Fechar aba atual
-    private void fecharAbaAtual() {
-        JScrollPane scroll = getScrollAtual();
+    // Fechar aba (com verificação)
+    private void fecharAba(JScrollPane scroll) {
         if (scroll != null) {
-            if (verificarAlteracoesNaoSalvas()) {
+            if (verificarAlteracoesNaoSalvas(scroll)) {
                 abas.remove(scroll);
                 arquivos.remove(scroll);
                 alterados.remove(scroll);
@@ -194,12 +191,32 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         alterados.put(scroll, alterado);
         File arquivo = arquivos.get(scroll);
         String titulo = (arquivo != null) ? arquivo.getName() : "Sem título";
-        if (alterado) titulo += "*";
-        abas.setTitleAt(abas.indexOfComponent(scroll), titulo);
+        setTituloAba(scroll, titulo, alterado);
+    }
+
+    private void setTituloAba(JScrollPane scroll, String titulo, boolean alterado) {
+        int index = abas.indexOfComponent(scroll);
+        JPanel painelTitulo = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        painelTitulo.setOpaque(false);
+
+        JLabel lblTitulo = new JLabel(titulo + (alterado ? "*" : ""));
+        JButton btnFechar = new JButton("x");
+        btnFechar.setMargin(new Insets(0, 2, 0, 2));
+        btnFechar.setBorder(null);
+
+        btnFechar.addActionListener(e -> fecharAba(scroll));
+
+        painelTitulo.add(lblTitulo);
+        painelTitulo.add(btnFechar);
+
+        abas.setTabComponentAt(index, painelTitulo);
     }
 
     private boolean verificarAlteracoesNaoSalvas() {
-        JScrollPane scroll = getScrollAtual();
+        return verificarAlteracoesNaoSalvas(getScrollAtual());
+    }
+
+    private boolean verificarAlteracoesNaoSalvas(JScrollPane scroll) {
         if (scroll == null) return true;
 
         boolean alterado = alterados.getOrDefault(scroll, false);
