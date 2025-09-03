@@ -2,24 +2,22 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.util.HashMap;
 
 public class BlocoDeNotasDigiEvoluido extends JFrame {
-    private JTextArea areaDeTexto;
+    private JTabbedPane abas;
     private JFileChooser seletorDeArquivo;
-    private File arquivoAtual;
     private JLabel barraDeStatus;
-    private boolean alterado = false;
 
-    // Controle de busca
-    private int ultimaPosicaoEncontrada = -1;
-    private String ultimaBusca = "";
+    // Estruturas para controlar arquivos e estados por aba
+    private HashMap<Component, File> arquivos = new HashMap<>();
+    private HashMap<Component, Boolean> alterados = new HashMap<>();
 
     public BlocoDeNotasDigiEvoluido() {
-        super("Bloco de Notas Simples");
+        super("Bloco de Notas com Abas");
 
-        areaDeTexto = new JTextArea();
-        JScrollPane scrollPane = new JScrollPane(areaDeTexto);
-        add(scrollPane, BorderLayout.CENTER);
+        abas = new JTabbedPane();
+        add(abas, BorderLayout.CENTER);
 
         seletorDeArquivo = new JFileChooser();
 
@@ -27,13 +25,17 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         JMenuBar menuBar = new JMenuBar();
 
         JMenu menuArquivo = new JMenu("Arquivo");
+        JMenuItem itemNovo = new JMenuItem("Novo");
         JMenuItem itemAbrir = new JMenuItem("Abrir");
         JMenuItem itemSalvar = new JMenuItem("Salvar");
         JMenuItem itemSalvarComo = new JMenuItem("Salvar Como...");
+        JMenuItem itemFecharAba = new JMenuItem("Fechar Aba");
         JMenuItem itemSair = new JMenuItem("Sair");
+        menuArquivo.add(itemNovo);
         menuArquivo.add(itemAbrir);
         menuArquivo.add(itemSalvar);
         menuArquivo.add(itemSalvarComo);
+        menuArquivo.add(itemFecharAba);
         menuArquivo.addSeparator();
         menuArquivo.add(itemSair);
 
@@ -55,19 +57,12 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         painelStatus.add(barraDeStatus);
         add(painelStatus, BorderLayout.SOUTH);
 
-        // Listener de alterações
-        areaDeTexto.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyReleased(KeyEvent e) {
-                atualizarBarraDeStatus();
-                setAlterado(true);
-            }
-        });
-
         // Ações Arquivo
+        itemNovo.addActionListener(e -> novaAba(null));
         itemAbrir.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) abrirArquivo(); });
         itemSalvar.addActionListener(e -> salvarArquivo());
         itemSalvarComo.addActionListener(e -> salvarArquivoComo());
+        itemFecharAba.addActionListener(e -> fecharAbaAtual());
         itemSair.addActionListener(e -> { if (verificarAlteracoesNaoSalvas()) System.exit(0); });
 
         // Ações Editar
@@ -83,30 +78,175 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
             }
         });
 
-        setSize(600, 400);
+        // Criar primeira aba em branco
+        novaAba(null);
+
+        setSize(700, 500);
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
         setVisible(true);
     }
 
-    // --- Localizar ---
+    // Criar nova aba
+    private void novaAba(File arquivo) {
+        JTextArea areaDeTexto = new JTextArea();
+        JScrollPane scrollPane = new JScrollPane(areaDeTexto);
+
+        String titulo = (arquivo != null) ? arquivo.getName() : "Sem título";
+        abas.addTab(titulo, scrollPane);
+
+        arquivos.put(scrollPane, arquivo);
+        alterados.put(scrollPane, false);
+
+        areaDeTexto.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                atualizarBarraDeStatus(areaDeTexto);
+                setAlterado(scrollPane, true);
+            }
+        });
+
+        abas.setSelectedComponent(scrollPane);
+
+        if (arquivo != null) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(arquivo))) {
+                areaDeTexto.read(reader, null);
+                setAlterado(scrollPane, false);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Erro ao abrir o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+
+        atualizarBarraDeStatus(areaDeTexto);
+    }
+
+    private JTextArea getAreaAtual() {
+        JScrollPane scrollPane = (JScrollPane) abas.getSelectedComponent();
+        return (JTextArea) scrollPane.getViewport().getView();
+    }
+
+    private JScrollPane getScrollAtual() {
+        return (JScrollPane) abas.getSelectedComponent();
+    }
+
+    // Atualiza barra de status
+    private void atualizarBarraDeStatus(JTextArea area) {
+        String texto = area.getText();
+        int caracteres = texto.length();
+        String[] palavras = texto.trim().isEmpty() ? new String[0] : texto.trim().split("\\s+");
+        barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + palavras.length);
+    }
+
+    // Arquivo
+    private void abrirArquivo() {
+        if (seletorDeArquivo.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File arquivo = seletorDeArquivo.getSelectedFile();
+            novaAba(arquivo);
+        }
+    }
+
+    private void salvarArquivo() {
+        JScrollPane scroll = getScrollAtual();
+        JTextArea area = getAreaAtual();
+        File arquivo = arquivos.get(scroll);
+
+        if (arquivo != null) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivo))) {
+                area.write(writer);
+                setAlterado(scroll, false);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Erro ao salvar o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+        } else {
+            salvarArquivoComo();
+        }
+    }
+
+    private void salvarArquivoComo() {
+        JScrollPane scroll = getScrollAtual();
+        JTextArea area = getAreaAtual();
+
+        if (seletorDeArquivo.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File arquivo = seletorDeArquivo.getSelectedFile();
+            arquivos.put(scroll, arquivo);
+            salvarArquivo();
+        }
+    }
+
+    // Fechar aba atual
+    private void fecharAbaAtual() {
+        JScrollPane scroll = getScrollAtual();
+        if (scroll != null) {
+            if (verificarAlteracoesNaoSalvas()) {
+                abas.remove(scroll);
+                arquivos.remove(scroll);
+                alterados.remove(scroll);
+
+                if (abas.getTabCount() == 0) {
+                    novaAba(null);
+                }
+            }
+        }
+    }
+
+    // Controle de alterações
+    private void setAlterado(JScrollPane scroll, boolean alterado) {
+        alterados.put(scroll, alterado);
+        File arquivo = arquivos.get(scroll);
+        String titulo = (arquivo != null) ? arquivo.getName() : "Sem título";
+        if (alterado) titulo += "*";
+        abas.setTitleAt(abas.indexOfComponent(scroll), titulo);
+    }
+
+    private boolean verificarAlteracoesNaoSalvas() {
+        JScrollPane scroll = getScrollAtual();
+        if (scroll == null) return true;
+
+        boolean alterado = alterados.getOrDefault(scroll, false);
+        if (!alterado) return true;
+
+        int resposta = JOptionPane.showConfirmDialog(this,
+                "O arquivo foi modificado. Deseja salvar as alterações?",
+                "Alterações não salvas",
+                JOptionPane.YES_NO_CANCEL_OPTION);
+
+        if (resposta == JOptionPane.YES_OPTION) {
+            salvarArquivo();
+            return true;
+        } else if (resposta == JOptionPane.NO_OPTION) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // Funções Editar
+    private void confirmarLimpar() {
+        JTextArea area = getAreaAtual();
+        int resposta = JOptionPane.showConfirmDialog(this, "Deseja realmente limpar o texto?", "Confirmação", JOptionPane.YES_NO_OPTION);
+        if (resposta == JOptionPane.YES_OPTION) {
+            area.setText("");
+            atualizarBarraDeStatus(area);
+            setAlterado(getScrollAtual(), true);
+        }
+    }
+
     private void localizarTexto() {
+        JTextArea area = getAreaAtual();
         String termo = JOptionPane.showInputDialog(this, "Digite o termo a localizar:");
         if (termo != null && !termo.isEmpty()) {
-            ultimaBusca = termo;
-            ultimaPosicaoEncontrada = areaDeTexto.getText().indexOf(termo);
-
-            if (ultimaPosicaoEncontrada >= 0) {
-                areaDeTexto.requestFocus();
-                areaDeTexto.select(ultimaPosicaoEncontrada, ultimaPosicaoEncontrada + termo.length());
+            int pos = area.getText().indexOf(termo);
+            if (pos >= 0) {
+                area.requestFocus();
+                area.select(pos, pos + termo.length());
             } else {
                 JOptionPane.showMessageDialog(this, "Termo não encontrado.");
             }
         }
     }
 
-    // --- Localizar e Substituir ---
     private void abrirJanelaLocalizarSubstituir() {
+        JTextArea area = getAreaAtual();
         JDialog dialogo = new JDialog(this, "Localizar e Substituir", true);
         dialogo.setLayout(new GridLayout(3, 2, 5, 5));
 
@@ -125,129 +265,43 @@ public class BlocoDeNotasDigiEvoluido extends JFrame {
         dialogo.add(btnSubstituir);
         dialogo.add(btnSubstituirTodos);
 
-        // Ação Localizar Próximo
         btnLocalizar.addActionListener(e -> {
             String termo = campoLocalizar.getText();
             if (!termo.isEmpty()) {
-                String texto = areaDeTexto.getText();
-                ultimaPosicaoEncontrada = texto.indexOf(termo, areaDeTexto.getCaretPosition());
-
-                if (ultimaPosicaoEncontrada >= 0) {
-                    areaDeTexto.requestFocus();
-                    areaDeTexto.select(ultimaPosicaoEncontrada, ultimaPosicaoEncontrada + termo.length());
+                int pos = area.getText().indexOf(termo, area.getCaretPosition());
+                if (pos >= 0) {
+                    area.requestFocus();
+                    area.select(pos, pos + termo.length());
                 } else {
                     JOptionPane.showMessageDialog(dialogo, "Nenhuma ocorrência encontrada.");
                 }
             }
         });
 
-        // Ação Substituir
         btnSubstituir.addActionListener(e -> {
             String termo = campoLocalizar.getText();
             String substituto = campoSubstituir.getText();
-            if (!termo.isEmpty() && areaDeTexto.getSelectedText() != null &&
-                areaDeTexto.getSelectedText().equals(termo)) {
-
-                areaDeTexto.replaceSelection(substituto);
-                setAlterado(true);
+            if (!termo.isEmpty() && area.getSelectedText() != null &&
+                area.getSelectedText().equals(termo)) {
+                area.replaceSelection(substituto);
+                setAlterado(getScrollAtual(), true);
             }
         });
 
-        // Ação Substituir Todos
         btnSubstituirTodos.addActionListener(e -> {
             String termo = campoLocalizar.getText();
             String substituto = campoSubstituir.getText();
             if (!termo.isEmpty()) {
-                String texto = areaDeTexto.getText();
-                texto = texto.replaceAll(termo, substituto);
-                areaDeTexto.setText(texto);
-                setAlterado(true);
-                atualizarBarraDeStatus();
+                String texto = area.getText().replaceAll(termo, substituto);
+                area.setText(texto);
+                setAlterado(getScrollAtual(), true);
+                atualizarBarraDeStatus(area);
             }
         });
 
         dialogo.setSize(400, 150);
         dialogo.setLocationRelativeTo(this);
         dialogo.setVisible(true);
-    }
-
-    // --- Confirmar limpar ---
-    private void confirmarLimpar() {
-        int resposta = JOptionPane.showConfirmDialog(this, "Deseja realmente limpar o texto?", "Confirmação", JOptionPane.YES_NO_OPTION);
-        if (resposta == JOptionPane.YES_OPTION) {
-            areaDeTexto.setText("");
-            atualizarBarraDeStatus();
-            setAlterado(true);
-        }
-    }
-
-    // --- Atualizar status ---
-    private void atualizarBarraDeStatus() {
-        String texto = areaDeTexto.getText();
-        int caracteres = texto.length();
-        String[] palavras = texto.trim().isEmpty() ? new String[0] : texto.trim().split("\\s+");
-        barraDeStatus.setText("Caracteres: " + caracteres + " | Palavras: " + palavras.length);
-    }
-
-    // --- Arquivo ---
-    private void abrirArquivo() {
-        if (seletorDeArquivo.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            arquivoAtual = seletorDeArquivo.getSelectedFile();
-            try (BufferedReader reader = new BufferedReader(new FileReader(arquivoAtual))) {
-                areaDeTexto.read(reader, null);
-                atualizarBarraDeStatus();
-                setAlterado(false);
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Erro ao abrir o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
-    private void salvarArquivo() {
-        if (arquivoAtual != null) {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoAtual))) {
-                areaDeTexto.write(writer);
-                setAlterado(false);
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Erro ao salvar o arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
-            }
-        } else {
-            salvarArquivoComo();
-        }
-    }
-
-    private void salvarArquivoComo() {
-        if (seletorDeArquivo.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            arquivoAtual = seletorDeArquivo.getSelectedFile();
-            salvarArquivo();
-        }
-    }
-
-    // --- Controle de alterações ---
-    private void setAlterado(boolean alterado) {
-        this.alterado = alterado;
-        atualizarTitulo();
-    }
-
-    private void atualizarTitulo() {
-        String nomeArquivo = (arquivoAtual != null) ? arquivoAtual.getName() : "Sem título";
-        setTitle(nomeArquivo + (alterado ? "*" : "") + " - Bloco de Notas");
-    }
-
-    private boolean verificarAlteracoesNaoSalvas() {
-        if (!alterado) return true;
-        int resposta = JOptionPane.showConfirmDialog(this,
-                "O arquivo foi modificado. Deseja salvar as alterações?",
-                "Alterações não salvas",
-                JOptionPane.YES_NO_CANCEL_OPTION);
-        if (resposta == JOptionPane.YES_OPTION) {
-            salvarArquivo();
-            return true;
-        } else if (resposta == JOptionPane.NO_OPTION) {
-            return true;
-        } else {
-            return false;
-        }
     }
 
     public static void main(String[] args) {
